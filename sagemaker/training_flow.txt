@@ -1,0 +1,188 @@
+Here is how the sagemaker training/deploying/inference look like. This is just the whole workflow:
+
+[2022-03-29_06-22-43-c41ed23bb1065a9de5f462a4efb1b66f.jpg](attachment:1158c4b2-3653-4981-9f25-864226fdb707:2022-03-29_06-22-43-c41ed23bb1065a9de5f462a4efb1b66f.jpg)
+
+1. Training data which need preprocessing mainly labeling using AWS ground truth then the data is saved to S3 bucket and ready for training;
+
+2. SageMaker load the data via S3 bucket address and split the data to training data and test data via training code;
+
+3. SageMaker launch compute instance, pull training image from ECR and do training;
+
+4. SageMaker will generate model artifact saving to S3 bucket;
+
+*5. SageMaker creates inference image:*
+
+*# - Takes your inference code*
+
+*# - Packages it into Docker image*
+
+*# - Pushes to ECR*
+
+*# - This happens BEFORE deployment starts*
+
+6. SageMaker deploys using the inference:
+
+# launch compute instance
+
+# pull inference image from ECR
+
+# load model artifact from S3
+
+# start inference service
+
+*7. Endpoint is now hosting the model:*
+
+*# - Ready to receive requests*
+
+*# - Inference code running*
+
+*# - Model loaded and ready*
+
+Complete Architecture Flow:
+
+```
+Client → AWS Ground Truth → S3 Bucket (Training Data)
+
+# 2. Training Job
+SageMaker → ECR (Training Image) → Compute Instance → S3 (Load Data)
+Your Training Code → Data Splitting → Model Training → S3 (Save Artifacts)
+
+# 3. Deployment
+SageMaker → ECR (Inference Image) → Compute Instance → S3 (Load Artifacts) → Endpoint
+
+# 4. Inference
+Client → Endpoint → Predictions
+```
+
+Think of it like this: Training image = "How to build a car", Inference image = "How to drive the car"!
+
+In the Diagram:
+
+```
+# Left side (Training):
+"Training code image" → "Model training" → "Model artifacts"
+
+# Right side (Deployment):
+"Inference code image" → "Deployment / hosting"
+
+# The inference image is created BEFORE the deployment/hosting section
+```
+
+Q:'my training script' points to the training code in the pic?
+
+A:
+
+Summary
+
+Yes, "my training script" = "Training code" in the image
+
+- Training code = Your actual ML training logic
+- Helper code = AWS utilities that support your training
+- Both run together on the SageMaker compute instance
+- Your script is the main logic, helper code provides AWS integration
+
+So when I said "data splitting happens in your training code" - that means it happens in the "Training code" component shown in the image!
+
+Q: what is the usage for "SageMaker creates inference image (separate from training)"? I mean what next step will use it?
+
+A:
+
+What is the Inference Image?
+
+Inference Image = Code for Making Predictions
+
+Why Separate Images?
+
+Training Image vs Inference Image:
+
+```
+# Training Image:
+# - Contains training libraries (TensorFlow, PyTorch, etc.)
+# - Contains data processing code
+# - Contains training loop
+# - Large size (many dependencies)
+
+# Inference Image:
+# - Contains only prediction code
+# - Optimized for fast inference
+# - Smaller size (fewer dependencies)
+# - Optimized for serving requests
+```
+
+The Image Shows This Flow
+
+In the Diagram:
+
+```
+# "Training code image" → "Model training" → "Model artifacts"
+# "Inference code image" → "Deployment / hosting" → "Endpoint"
+
+# The inference image is used in the "Deployment / hosting" section
+# to serve the trained model for real-time predictions
+```
+
+Summary
+
+The inference image is used for:
+
+1. Deployment: SageMaker uses it to deploy the model to an endpoint
+2. Serving: The endpoint uses it to handle real-time prediction requests
+3. Optimization: It's optimized for fast inference, not training
+
+Next steps that use it:
+
+- Deploying the model to an endpoint
+- Serving real-time predictions to clients
+- Handling inference requests efficiently
+
+Think of it like this: Training image = "How to build a car", Inference image = "How to drive the car"!
+
+Q: does inference code aim to generate inference image or to process the client inference request?
+
+A:
+
+Summary
+
+Inference code serves BOTH purposes:
+
+1. Source Code: Used to generate the inference image
+2. Runtime Process: Processes client inference requests
+
+The flow:
+
+Your Inference Code (Source)
+
+↓
+
+SageMaker Creates Inference Image (ECR)
+
+↓
+
+Inference Code Runs (Runtime) - Handles Client Requests
+
+So the answer is: BOTH! Your inference code is used to create the image, and then that image runs your code to process client requests.
+
+Think of it like: Your code is the recipe (source), the image is the packaged meal (container), and the running process is the restaurant serving customers (runtime)!
+
+Q: when does this inference image generation happen? before or after or within deployment or before or after or within hosting?
+
+A:
+
+Summary
+
+Inference image generation happens:
+
+- BEFORE deployment starts
+- BEFORE hosting begins
+- AFTER training completes
+- AFTER model artifacts are saved
+
+The sequence:
+
+```
+Training → Model Artifacts → Inference Image Generation → Deployment → Hosting
+```
+
+Why this order: The inference image must exist in ECR before SageMaker can pull it during deployment. It's like having the recipe ready before you start cooking!
+
+Think of it like: You need to build the car (inference image) before you can drive it (deployment/hosting)!
